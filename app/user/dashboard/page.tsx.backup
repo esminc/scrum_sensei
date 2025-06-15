@@ -1,0 +1,806 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { Content } from '@/lib/models/content';
+import { UserProgress, QuizResult } from '@/lib/models/progress';
+import { Button } from '@/components/ui/button';
+import UserNav from '@/components/user/UserNav';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import {
+  BookOpen,
+  Clock,
+  Star,
+  Calendar,
+  Trophy,
+  CheckCircle,
+  Search,
+  Filter,
+  FileText,
+  Video,
+  MessagesSquare,
+  FileQuestion,
+  ArrowRight,
+  BarChart3,
+  Book,
+  Timer,
+  Brain
+} from 'lucide-react';
+import Link from 'next/link';
+import { RecentQuizResults } from '@/components/user/RecentQuizResults';
+// AIアドバイス関連のインポートをコメントアウト - ダッシュボード表示不要
+// import AiAdvice from '@/components/user/AiAdvice';
+// import AiAdviceStats from '@/components/user/AiAdviceStats';
+
+// クイズアイテムの型定義
+interface QuizItem {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+  questionCount: number;
+}
+
+// 学習統計の型定義
+interface LearningStats {
+  totalTimeSpent: number; // 分単位
+  completedContents: number;
+  inProgressContents: number;
+  averageScore: number;
+  lastAccessDate: string;
+  streak: number; // 連続学習日数
+}
+
+// 最近のアクティビティの型定義は不要になったため削除
+
+// ユーザー情報（実際はサーバーから取得）
+const mockUser = {
+  id: 'user-1',
+  name: 'ユーザー',
+  email: 'user@example.com',
+  avatar: '/user-avatar.png'
+};
+
+export default function UserDashboardPage() {
+  const [contents, setContents] = useState<Content[]>([]);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+  const [progress, setProgress] = useState<UserProgress[]>([]);
+  const [activeTab, setActiveTab] = useState('quiz');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [recentQuizResults, setRecentQuizResults] = useState<Array<{
+    result: QuizResult;
+    quizTitle?: string;
+    contentId: string;
+  }>>([]);
+  
+  // モック学習統計（実際はAPIから取得）
+  const [learningStats] = useState<LearningStats>({
+    totalTimeSpent: 320, // 5時間20分
+    completedContents: 8,
+    inProgressContents: 3,
+    averageScore: 85,
+    lastAccessDate: new Date().toISOString(),
+    streak: 5
+  });
+  
+  // コンテンツと進捗データとクイズデータを取得
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // APIクライアントをインポート
+        const { get } = await import('@/lib/api/client');
+        
+        // コンテンツデータを取得
+        const contentsData = await get('user/content');
+        
+        if (contentsData.contents && Array.isArray(contentsData.contents)) {
+          setContents(contentsData.contents);
+        }
+        
+        // 進捗データを取得
+        const progressData = await get(`user/progress?userId=${mockUser.id}`);
+        
+        if (progressData.progress && Array.isArray(progressData.progress)) {
+          setProgress(progressData.progress);
+          
+          // 最近のクイズ結果を抽出
+          const recentResults: Array<{result: QuizResult, quizTitle?: string, contentId: string}> = [];
+          
+          progressData.progress.forEach((p: UserProgress) => {
+            if (p.quizResults && p.quizResults.length > 0) {
+              p.quizResults.forEach(result => {
+                recentResults.push({
+                  result,
+                  contentId: p.contentId
+                });
+              });
+            }
+          });
+          
+          // 日付順にソート（最新のものが先頭）
+          recentResults.sort((a, b) => 
+            new Date(b.result.completedAt).getTime() - new Date(a.result.completedAt).getTime()
+          );
+          
+          setRecentQuizResults(recentResults);
+        }
+
+        // 保存済みクイズを取得
+        const quizzesRes = await fetch('/api/quizzes');
+        const quizzesData = await quizzesRes.json();
+        
+        if (quizzesData.success && Array.isArray(quizzesData.quizzes)) {
+          setQuizzes(quizzesData.quizzes);
+          
+          // クイズタイトルを関連付ける
+          setRecentQuizResults(prev => 
+            prev.map(item => ({
+              ...item,
+              quizTitle: quizzesData.quizzes.find((q: QuizItem) => q.id === item.result.quizId)?.title
+            }))
+          );
+        }
+        
+      } catch (error) {
+        console.error('データの取得に失敗しました:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
+  
+  // モックアクティビティ生成機能は不要になったため削除
+
+  // コンテンツをフィルタリングして表示
+  const filteredContents = contents.filter(content => {
+    // 検索クエリでフィルタリング
+    if (searchQuery && !content.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    
+    // タブでフィルタリング
+    if (activeTab === 'quiz') {
+      return false; // クイズタブの場合はここでは表示しない（別途表示する）
+    }
+    
+    if (activeTab !== 'all' && content.type !== activeTab) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // クイズをフィルタリングして表示
+  const filteredQuizzes = quizzes.filter(quiz => {
+    if (searchQuery && !quiz.title.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    return true;
+  });
+
+  // タブ変更ハンドラ
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+
+  // 日付をフォーマット
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      console.error('日付フォーマットエラー:', error);
+      return dateString;
+    }
+  };
+  
+  // 学習時間をフォーマット
+  const formatLearningTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}時間${mins}分`;
+  };  // アクティビティ関連の関数は削除
+
+  // コンテンツカード
+  const ContentCard = ({ content }: { content: Content }) => {
+    // この特定のコンテンツの進捗を取得
+    const contentProgress = progress.find(p => p.contentId === content.id);
+    const completionPercentage = contentProgress?.completionPercentage || 0;
+    const started = !!contentProgress;
+
+    // コンテンツタイプに応じたアイコンを設定
+    const typeIcon = () => {
+      switch (content.type) {
+        case 'lesson':
+          return <FileText className="h-5 w-5" />;
+        case 'quiz':
+          return <FileQuestion className="h-5 w-5" />;
+        case 'video':
+          return <Video className="h-5 w-5" />;
+        case 'article':
+          return <MessagesSquare className="h-5 w-5" />;
+        default:
+          return <BookOpen className="h-5 w-5" />;
+      }
+    };
+
+    // コンテンツタイプに応じた表示名を設定
+    const typeName = () => {
+      switch (content.type) {
+        case 'lesson':
+          return '学習';
+        case 'quiz':
+          return 'クイズ';
+        case 'video':
+          return '動画';
+        case 'article':
+          return '記事';
+        default:
+          return 'コンテンツ';
+      }
+    };
+
+    return (
+      <div>
+        <div className="group glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden hover:bg-white/50 transition-all duration-300 hover:scale-105 hover:shadow-xl">
+          <div className="relative h-2 bg-white/20">
+            <div 
+              className={`absolute top-0 left-0 h-2 rounded-t-2xl ${
+                completionPercentage === 100 
+                  ? 'bg-green-500' 
+                  : started 
+                    ? 'bg-blue-500' 
+                    : 'bg-gray-300'
+              }`}
+              style={{ width: `${completionPercentage}%` }}
+            />
+          </div>
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className={`glass-morphism px-3 py-1 rounded-full text-xs font-semibold flex items-center space-x-1 ${
+                content.type === 'lesson' ? 'bg-blue-500/20 text-blue-700 border border-blue-200/50' :
+                content.type === 'quiz' ? 'bg-green-500/20 text-green-700 border border-green-200/50' :
+                content.type === 'video' ? 'bg-purple-500/20 text-purple-700 border border-purple-200/50' :
+                'bg-orange-500/20 text-orange-700 border border-orange-200/50'
+              }`}>
+                {typeIcon()}
+                <span>{typeName()}</span>
+              </div>
+              
+              {started && (
+                <div
+                  className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center space-x-1 ${
+                    completionPercentage === 100 
+                      ? 'glass-morphism bg-green-500/20 text-green-700 border border-green-200/50'
+                      : 'glass-morphism bg-blue-500/20 text-blue-700 border border-blue-200/50'
+                  }`}
+                >
+                  {completionPercentage === 100 ? (
+                    <>
+                      <CheckCircle className="h-3 w-3" />
+                      <span>完了</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-3 w-3" />
+                      <span>{completionPercentage}%</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <h3 className="text-lg font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mt-3 line-clamp-2">{content.title}</h3>
+            <p className="text-gray-600 text-sm mt-2 line-clamp-2">
+              {content.description}
+            </p>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="flex items-center text-sm text-gray-600 mb-4">
+              <Calendar className="h-3 w-3 mr-1" />
+              <span>
+                {new Date(content.updatedAt).toLocaleDateString('ja-JP')}
+              </span>
+              
+              {content.sections && (
+                <div className="flex items-center ml-4">
+                  <BookOpen className="h-3 w-3 mr-1" />
+                  <span>{content.sections.length}セクション</span>
+                </div>
+              )}
+            </div>
+            
+            <Link href={`/user/content/${content.id}`} className="w-full">
+              <Button className={`w-full font-medium rounded-xl transition-all duration-300 hover:scale-105 ${
+                started 
+                  ? "glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-blue-700" 
+                  : "bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-lg"
+              }`}>
+                {started ? (
+                  completionPercentage === 100 ? '復習する' : '続きから学習'
+                ) : '学習を開始'}
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // クイズカード
+  const QuizCard = ({ quiz }: { quiz: QuizItem }) => {
+    return (
+      <div>
+        <div className="group glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-lg overflow-hidden hover:bg-white/50 transition-all duration-300 hover:scale-105 hover:shadow-xl">
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="glass-morphism bg-green-500/20 text-green-700 border border-green-200/50 px-3 py-1 rounded-full text-xs font-semibold flex items-center space-x-1">
+                <FileQuestion className="h-4 w-4" />
+                <span>問題</span>
+              </div>
+              <div className="glass-morphism bg-blue-500/20 text-blue-700 border border-blue-200/50 px-3 py-1 rounded-full text-xs font-semibold">
+                {quiz.questionCount}問
+              </div>
+            </div>
+            <h3 className="text-lg font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mt-3 line-clamp-2">{quiz.title}</h3>
+            <p className="text-gray-600 text-sm mt-2 line-clamp-2">
+              {quiz.description}
+            </p>
+          </div>
+          <div className="px-4 pb-4">
+            <div className="flex items-center text-sm text-gray-600 mb-4">
+              <Calendar className="h-3 w-3 mr-1" />
+              <span>{formatDate(quiz.createdAt)}</span>
+            </div>
+            
+            <Link href={`/user/quiz/${quiz.id}`} className="w-full">
+              <Button className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-white hover:shadow-lg font-medium rounded-xl transition-all duration-300 hover:scale-105">
+                問題に挑戦
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-purple-900">
+      <UserNav />
+      
+      {/* Background decoration */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-purple-400/20 to-pink-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 w-60 h-60 bg-gradient-to-br from-green-400/10 to-blue-500/10 rounded-full blur-2xl"></div>
+      </div>
+      
+      <div className="relative container mx-auto px-4 py-8 pt-20">
+        {/* ヘッダーセクション - ようこそメッセージとクイック統計 */}
+        <div className="mb-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-4 glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-2xl shadow-lg">
+                <Brain className="h-10 w-10 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  こんにちは、{mockUser.name}さん
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300 mt-2 text-lg">
+                  今日も学習を続けましょう。連続学習: <span className="font-bold text-orange-600">{learningStats.streak}日目</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-4 md:mt-0">
+              <Link href="/user/statistics">
+                <Button className="glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-blue-700 font-medium px-6 py-3 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg flex items-center space-x-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span>学習統計</span>
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+        {/* ユーザー概要カード */}
+        <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl">
+          <div className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="md:col-span-1 flex md:flex-col items-center md:border-r md:border-white/20 pr-4">
+                <Avatar className="h-16 w-16 md:h-24 md:w-24 mr-4 md:mr-0 md:mb-4 ring-4 ring-white/50">
+                  <AvatarImage src={mockUser.avatar} alt={mockUser.name} />
+                  <AvatarFallback className="text-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                    {mockUser.name.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="md:text-center">
+                  <h2 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mb-1">
+                    {mockUser.name}
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    最終ログイン: {formatDate(new Date().toISOString())}
+                  </p>
+                  <div className="mt-3">
+                    <div className="glass-morphism bg-amber-500/20 text-amber-700 border border-amber-200/50 px-3 py-1 rounded-full text-sm font-semibold flex items-center justify-center space-x-1">
+                      <Star className="h-4 w-4 text-yellow-500" />
+                      <span>中級者</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="md:col-span-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="group glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/40 transition-all duration-300 hover:scale-105 hover:shadow-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                        <Trophy className="h-5 w-5 text-white" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-700">連続学習</p>
+                    </div>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{learningStats.streak}日</p>
+                    <p className="text-xs text-gray-600 mt-1">前週比 +2日</p>
+                  </div>
+                  
+                  <div className="group glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/40 transition-all duration-300 hover:scale-105 hover:shadow-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                        <CheckCircle className="h-5 w-5 text-white" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-700">完了数</p>
+                    </div>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">{learningStats.completedContents}</p>
+                    <p className="text-xs text-gray-600 mt-1">合計コンテンツ数</p>
+                  </div>
+                  
+                  <div className="group glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/40 transition-all duration-300 hover:scale-105 hover:shadow-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                        <Timer className="h-5 w-5 text-white" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-700">総学習時間</p>
+                    </div>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">{formatLearningTime(learningStats.totalTimeSpent)}</p>
+                    <p className="text-xs text-gray-600 mt-1">今週: 3時間45分</p>
+                  </div>
+                  
+                  <div className="group glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/40 transition-all duration-300 hover:scale-105 hover:shadow-lg">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow duration-300">
+                        <Star className="h-5 w-5 text-white" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-700">平均スコア</p>
+                    </div>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{learningStats.averageScore}%</p>
+                    <p className="text-xs text-gray-600 mt-1">前回: 82%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* メインコンテンツ */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 左カラム - 学習ダッシュボード */}
+          <div className="lg:col-span-2">
+            <div>
+              <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl mb-6">
+                <div className="p-6 pb-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                        <BookOpen className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">学習コンテンツ</h3>
+                        <p className="text-gray-600">あなたの学習リソース一覧</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 pointer-events-none" />
+                        <Input
+                          type="search"
+                          placeholder="検索..."
+                          className="pl-8 w-[150px] md:w-[200px] glass-morphism bg-white/30 border-white/20 backdrop-blur-sm"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                      </div>
+                      <Button className="glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-gray-700 hidden sm:flex">
+                        <Filter className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="px-6 pb-6">
+                  <Tabs defaultValue={activeTab} onValueChange={handleTabChange}>
+                    <div className="glass-morphism bg-white/30 border-white/20 backdrop-blur-sm p-1 h-auto rounded-2xl mb-4 grid grid-cols-5 gap-1">
+                      <button 
+                        onClick={() => handleTabChange('all')}
+                        className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 text-sm ${
+                          activeTab === 'all' 
+                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
+                            : 'text-gray-700 hover:bg-white/30'
+                        }`}
+                      >
+                        すべて
+                      </button>
+                      <button 
+                        onClick={() => handleTabChange('lesson')}
+                        className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 text-sm ${
+                          activeTab === 'lesson' 
+                            ? 'bg-gradient-to-r from-green-500 to-teal-600 text-white shadow-lg' 
+                            : 'text-gray-700 hover:bg-white/30'
+                        }`}
+                      >
+                        学習
+                      </button>
+                      <button 
+                        onClick={() => handleTabChange('article')}
+                        className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 text-sm ${
+                          activeTab === 'article' 
+                            ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg' 
+                            : 'text-gray-700 hover:bg-white/30'
+                        }`}
+                      >
+                        記事
+                      </button>
+                      <button 
+                        onClick={() => handleTabChange('video')}
+                        className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 text-sm ${
+                          activeTab === 'video' 
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg' 
+                            : 'text-gray-700 hover:bg-white/30'
+                        }`}
+                      >
+                        動画
+                      </button>
+                      <button 
+                        onClick={() => handleTabChange('quiz')}
+                        className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 text-sm ${
+                          activeTab === 'quiz' 
+                            ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg' 
+                            : 'text-gray-700 hover:bg-white/30'
+                        }`}
+                      >
+                        問題集
+                      </button>
+                    </div>
+                    
+                    <div className="animate-in slide-in-from-top-5 duration-300">
+                      {loading ? (
+                        <div className="flex justify-center items-center py-20">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                        </div>
+                      ) : activeTab === "quiz" ? (
+                        filteredQuizzes.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {filteredQuizzes.map((quiz) => (
+                              <QuizCard key={quiz.id} quiz={quiz} />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-10">
+                            <FileQuestion className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                            <h3 className="text-lg font-medium">問題が見つかりません</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              保存された問題がないか、検索条件に一致する問題はありません。
+                            </p>
+                          </div>
+                        )
+                      ) : filteredContents.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {filteredContents.map((content) => (
+                            <ContentCard key={content.id} content={content} />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-10">
+                          <Book className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                          <h3 className="text-lg font-medium">コンテンツが見つかりません</h3>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            検索条件に一致するコンテンツがありません。
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </Tabs>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 右カラム - サイドバー */}
+          <div className="space-y-6">
+            {/* 学習統計 */}
+            <div>
+              <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl">
+                <div className="p-6">
+                  <div className="flex items-center space-x-3 mb-6">
+                    <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                      <BarChart3 className="h-5 w-5 text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">学習統計</h3>
+                  </div>
+                <div className="space-y-4">
+                  {/* 進捗状況グラフ */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium mb-3">学習進捗</h4>
+                    <div className="flex items-center justify-center relative">
+                      {/* シンプルな円グラフの代わりに視覚的な円グラフを表示 */}
+                      <div className="w-32 h-32 relative">
+                        <svg className="w-full h-full" viewBox="0 0 100 100">
+                          {/* 背景の円 */}
+                          <circle 
+                            cx="50" 
+                            cy="50" 
+                            r="40" 
+                            fill="none" 
+                            strokeWidth="10" 
+                            stroke="hsl(var(--muted))" 
+                          />
+                          
+                          {/* 完了したコンテンツ */}
+                          <circle 
+                            cx="50" 
+                            cy="50" 
+                            r="40" 
+                            fill="none" 
+                            strokeWidth="10" 
+                            stroke="hsl(var(--success))" 
+                            strokeDasharray={`${(learningStats.completedContents / (learningStats.completedContents + learningStats.inProgressContents) * 251.2)} 251.2`}
+                            strokeDashoffset="0" 
+                            transform="rotate(-90 50 50)" 
+                          />
+                          
+                          {/* 進行中のコンテンツ */}
+                          <circle 
+                            cx="50" 
+                            cy="50" 
+                            r="40" 
+                            fill="none" 
+                            strokeWidth="10" 
+                            stroke="hsl(var(--primary))" 
+                            strokeDasharray={`${(learningStats.inProgressContents / (learningStats.completedContents + learningStats.inProgressContents) * 251.2)} 251.2`}
+                            strokeDashoffset={`-${(learningStats.completedContents / (learningStats.completedContents + learningStats.inProgressContents) * 251.2)}`} 
+                            transform="rotate(-90 50 50)" 
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center flex-col">
+                          <span className="text-2xl font-bold">
+                            {Math.round((learningStats.completedContents / (learningStats.completedContents + learningStats.inProgressContents)) * 100)}%
+                          </span>
+                          <span className="text-xs text-muted-foreground">完了</span>
+                        </div>
+                      </div>
+                      
+                      <div className="ml-4 space-y-2">
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 bg-primary rounded-full mr-2"></div>
+                          <div className="text-sm">
+                            <span className="font-medium">{learningStats.inProgressContents}</span> 進行中
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                          <div className="text-sm">
+                            <span className="font-medium">{learningStats.completedContents}</span> 完了済み
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 bg-muted rounded-full mr-2"></div>
+                          <div className="text-sm">
+                            <span className="font-medium">3</span> 未着手
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1 text-sm">
+                      <span>平均スコア</span>
+                      <span className="font-medium">{learningStats.averageScore}%</span>
+                    </div>
+                    <Progress 
+                      value={learningStats.averageScore} 
+                      className={`h-2 ${
+                        learningStats.averageScore >= 80 ? "bg-green-100" : 
+                        learningStats.averageScore >= 60 ? "bg-amber-100" : 
+                        "bg-red-100"
+                      }`}
+                      indicatorClassName={`h-full w-full flex-1 transition-all ${
+                        learningStats.averageScore >= 80 ? "bg-green-500" : 
+                        learningStats.averageScore >= 60 ? "bg-amber-500" : 
+                        "bg-red-500"
+                      }`}
+                    />
+                  </div>
+                  
+                  <div className="pt-4">
+                    <h4 className="text-sm font-medium mb-2">進行中のコンテンツ</h4>
+                    <div className="space-y-3">
+                      {progress
+                        .filter(p => p.completionPercentage < 100)
+                        .slice(0, 3)
+                        .map(p => {
+                          const content = contents.find(c => c.id === p.contentId);
+                          return content ? (
+                            <div key={p.id} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="truncate">{content.title}</span>
+                                <span className="font-medium">{p.completionPercentage}%</span>
+                              </div>
+                              <Progress 
+                                value={p.completionPercentage} 
+                                className={`h-1 ${
+                                  p.completionPercentage > 75 ? "bg-green-100" :
+                                  p.completionPercentage > 50 ? "bg-blue-100" :
+                                  p.completionPercentage > 25 ? "bg-amber-100" :
+                                  "bg-red-100"
+                                }`}
+                                indicatorClassName={`h-full w-full flex-1 transition-all ${
+                                  p.completionPercentage > 75 ? "bg-green-500" :
+                                  p.completionPercentage > 50 ? "bg-blue-500" :
+                                  p.completionPercentage > 25 ? "bg-amber-500" :
+                                  "bg-red-500"
+                                }`}
+                              />
+                            </div>
+                          ) : null;
+                        })}
+                    </div>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-white/20">
+                  <Link href="/user/statistics" className="w-full">
+                    <Button className="w-full glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-blue-700 font-medium rounded-xl transition-all duration-300 hover:scale-105">
+                      詳細な統計を見る
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            
+            {/* 最近のクイズ結果 */}
+            <div>
+              <RecentQuizResults results={recentQuizResults} limit={3} />
+            </div>
+
+            {/* AIアドバイスをコメントアウト - ダッシュボード表示不要 */}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

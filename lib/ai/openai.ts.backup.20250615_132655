@@ -1,0 +1,48 @@
+import OpenAI from 'openai';
+import { openAIConfig } from './config';
+
+// OpenAIクライアントの初期化
+export const openai = new OpenAI({
+  apiKey: openAIConfig.apiKey,
+  timeout: 30000,
+  maxRetries: 3,
+});
+
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatOptions {
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/**
+ * OpenAI ChatCompletion APIを使用してチャット応答を生成
+ */
+export async function generateChatResponse(
+  messages: ChatMessage[],
+  options: ChatOptions = {}
+): Promise<string> {
+  const {
+    model = openAIConfig.model,
+    temperature = openAIConfig.temperature,
+    maxTokens = openAIConfig.maxTokens
+  } = options;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    });
+
+    return response.choices[0]?.message?.content || '';
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw new Error(`AI応答の生成に失敗しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
