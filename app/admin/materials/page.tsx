@@ -5,7 +5,7 @@ import AdminNav from '@/components/admin/AdminNav';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Volume2, FileQuestion, Plus, Filter, BookOpen, Play, Edit, Trash2 } from 'lucide-react';
+import { Volume2, FileQuestion, Plus, Filter, BookOpen, Play, Eye, Trash2 } from 'lucide-react';
 
 type Material = {
   id: number;
@@ -26,6 +26,8 @@ export default function MaterialsPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedQuiz, setSelectedQuiz] = useState<any>(null);
+  const [showQuizModal, setShowQuizModal] = useState(false);
 
   useEffect(() => {
     fetchMaterials();
@@ -64,6 +66,26 @@ export default function MaterialsPage() {
     } catch (error) {
       alert('削除時にエラーが発生しました');
       console.error('削除エラー:', error);
+    }
+  };
+
+  const handleViewQuiz = async (material: Material) => {
+    try {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath(`materials/${material.id}/quiz`));
+      const data = await response.json();
+      
+      if (data.success && data.quiz) {
+        console.log('取得したクイズデータ:', data.quiz);
+        setSelectedQuiz(data.quiz);
+        setShowQuizModal(true);
+      } else {
+        console.error('APIエラー:', data);
+        alert('クイズデータの取得に失敗しました');
+      }
+    } catch (error) {
+      console.error('クイズ取得エラー:', error);
+      alert('クイズデータの取得中にエラーが発生しました');
     }
   };
 
@@ -189,14 +211,14 @@ export default function MaterialsPage() {
             </TabsList>
             
             <TabsContent value="all" className="animate-in slide-in-from-top-5 duration-300">
-              <MaterialGrid materials={materials} onDelete={handleDelete} router={router} formatDate={formatDate} />
+              <MaterialGrid materials={materials} onDelete={handleDelete} onViewQuiz={handleViewQuiz} formatDate={formatDate} />
             </TabsContent>
             
             <TabsContent value="quiz" className="animate-in slide-in-from-top-5 duration-300">
               <MaterialGrid 
                 materials={materials.filter(m => m.type === 'quiz')} 
                 onDelete={handleDelete} 
-                router={router} 
+                onViewQuiz={handleViewQuiz}
                 formatDate={formatDate} 
               />
             </TabsContent>
@@ -205,11 +227,97 @@ export default function MaterialsPage() {
               <MaterialGrid 
                 materials={materials.filter(m => m.type === 'audio')} 
                 onDelete={handleDelete} 
-                router={router} 
+                onViewQuiz={handleViewQuiz}
                 formatDate={formatDate} 
               />
             </TabsContent>
           </Tabs>
+        )}
+
+        {/* クイズ表示モーダル */}
+        {showQuizModal && selectedQuiz && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="glass-card bg-white/95 border-white/20 backdrop-blur-sm rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between p-6 border-b border-gray-200/50">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {selectedQuiz.title}
+                </h2>
+                <Button
+                  onClick={() => setShowQuizModal(false)}
+                  className="glass-button text-gray-500 hover:text-gray-700 rounded-xl"
+                >
+                  ✕
+                </Button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <div className="space-y-6">
+                  {selectedQuiz.questions?.map((question: any, index: number) => (
+                    <div key={question.id} className="glass-morphism-subtle rounded-xl p-6">
+                      <div className="flex items-start space-x-4">
+                        <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg text-white font-bold min-w-[2rem] text-center">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                            {question.question}
+                          </h3>
+                          
+                          <div className="space-y-2 mb-4">
+                            {question.options && Array.isArray(question.options) ? question.options.map((option: any, optionIndex: number) => {
+                              // オプションが文字列の場合とオブジェクトの場合の両方に対応
+                              const optionText = typeof option === 'string' ? option : option.text;
+                              const optionId = typeof option === 'string' ? String.fromCharCode(97 + optionIndex) : option.id;
+                              const correctAnswer = question.correctAnswer || question.correct_answer;
+                              const isCorrect = typeof option === 'string' 
+                                ? option === correctAnswer 
+                                : option.isCorrect || optionId === correctAnswer;
+                              
+                              return (
+                                <div
+                                  key={optionIndex}
+                                  className={`p-3 rounded-lg border ${
+                                    isCorrect
+                                      ? 'bg-green-50 border-green-200 text-green-800'
+                                      : 'bg-gray-50 border-gray-200 text-gray-700'
+                                  }`}
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-medium">
+                                      {String.fromCharCode(65 + optionIndex)}.
+                                    </span>
+                                    <span>{optionText}</span>
+                                    {isCorrect && (
+                                      <span className="ml-auto text-green-600 font-semibold">
+                                        ✓ 正解
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }) : (
+                              <div className="text-gray-500 italic">
+                                選択肢データがありません
+                              </div>
+                            )}
+                          </div>
+                          
+                          {question.explanation && (
+                            <div className="glass-morphism bg-blue-50/80 border-blue-200/50 backdrop-blur-sm rounded-lg p-4">
+                              <h4 className="font-semibold text-blue-800 mb-2">解説:</h4>
+                              <p className="text-blue-700 text-sm leading-relaxed">
+                                {question.explanation}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>
@@ -220,11 +328,11 @@ export default function MaterialsPage() {
 interface MaterialGridProps {
   materials: Material[];
   onDelete: (id: number) => void;
-  router: any;
+  onViewQuiz: (material: Material) => void;
   formatDate: (dateString: string) => string;
 }
 
-function MaterialGrid({ materials, onDelete, router, formatDate }: MaterialGridProps) {
+function MaterialGrid({ materials, onDelete, onViewQuiz, formatDate }: MaterialGridProps) {
   if (materials.length === 0) {
     return (
       <div className="text-center p-8 glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl">
@@ -292,14 +400,25 @@ function MaterialGrid({ materials, onDelete, router, formatDate }: MaterialGridP
           </div>
           
           <div className="flex space-x-3">
-            <Button
-              size="sm"
-              onClick={() => router.push(`/admin/materials/${material.id}/edit`)}
-              className="flex-1 glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-blue-700 font-medium rounded-xl transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2"
-            >
-              <Edit className="h-4 w-4" />
-              <span>編集</span>
-            </Button>
+            {material.type === 'quiz' ? (
+              <Button
+                size="sm"
+                onClick={() => onViewQuiz(material)}
+                className="flex-1 glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-blue-700 font-medium rounded-xl transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2"
+              >
+                <Eye className="h-4 w-4" />
+                <span>問題確認</span>
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => alert('音声教材の再生機能は開発中です')}
+                className="flex-1 glass-morphism bg-white/30 border-white/20 backdrop-blur-sm hover:bg-white/40 text-purple-700 font-medium rounded-xl transition-all duration-300 hover:scale-105 flex items-center justify-center space-x-2"
+              >
+                <Play className="h-4 w-4" />
+                <span>再生</span>
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={() => onDelete(material.id)}

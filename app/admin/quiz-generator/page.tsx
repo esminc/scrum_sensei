@@ -39,7 +39,7 @@ export default function AdminQuizGeneratorPage() {
               問題生成ツール
             </h1>
             <p className="mt-2 text-gray-600 text-lg max-w-3xl">
-              エンベディングされたコンテンツから、指定したトピックに関する問題を自動生成します。
+              AIを活用して、指定したトピックに関する問題を自動生成します。
             </p>
           </div>
         </div>

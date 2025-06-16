@@ -25,7 +25,8 @@ export default function ContentViewer({ contentId }: ContentViewerProps) {
     const fetchContent = async () => {
       try {
         setIsLoading(true);
-        const res = await fetch(`/scrum_sensei/api/user/content/${contentId}`);
+        const { getApiPath } = await import('@/lib/apiUtils');
+        const res = await fetch(getApiPath(`user/content/${contentId}`));
         if (!res.ok) {
           throw new Error('教材が見つかりません');
         }

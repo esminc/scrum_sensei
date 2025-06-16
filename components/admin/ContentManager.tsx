@@ -66,7 +66,8 @@ export default function ContentManager({ onEdit }: ContentManagerProps) {
   /* 現在未使用のため、必要になったらコメントを外して使用する
   const updateContentStatus = async (id: string, status: ContentStatus) => {
     try {
-      const response = await fetch(`/scrum_sensei/api/admin/content/${id}`, {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath(`admin/content/${id}`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +89,8 @@ export default function ContentManager({ onEdit }: ContentManagerProps) {
   // コンテンツを公開する（専用APIを使用）
   const publishContent = async (id: string) => {
     try {
-      const response = await fetch(`/scrum_sensei/api/admin/content/publish/${id}`, {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath(`admin/content/publish/${id}`), {
         method: 'PUT',
       });
       

@@ -36,7 +36,8 @@ export default function QuizPreview({ materials, onRefresh }: QuizPreviewProps) 
     if (!confirm('このクイズ教材を削除してもよろしいですか？')) return;
     
     try {
-      const response = await fetch(`/scrum_sensei/api/admin/quiz-materials/${id}`, {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath(`admin/quiz-materials/${id}`), {
         method: 'DELETE',
       });
       

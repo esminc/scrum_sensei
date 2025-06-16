@@ -40,6 +40,33 @@ export function QuizView({ quiz, userId, contentId, onComplete }: QuizViewProps)
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
+  // 進捗をAPIに記録する関数
+  const saveProgressToAPI = async (result: QuizResult) => {
+    try {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath('user/progress'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          contentId: contentId || quiz.id,
+          status: 'completed',
+          completionPercentage: 100,
+          timeSpent: result.timeSpent,
+          score: result.score
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('進捗記録エラー:', response.statusText);
+      }
+    } catch (error) {
+      console.error('進捗記録API呼び出しエラー:', error);
+    }
+  };
+
   // 現在の問題
   const currentQuestion = isReviewMode && reviewQuestions.length > 0
     ? quiz.questions.find(q => q.id === reviewQuestions[currentQuestionIndex])
@@ -97,7 +124,8 @@ export function QuizView({ quiz, userId, contentId, onComplete }: QuizViewProps)
       console.log('保存するデータ:', JSON.stringify({quizResult: result}));
       
       // 進捗を更新（明示的にfetchとJSON.stringifyを使用）
-      const response = await fetch(`/scrum_sensei/api/user/progress?id=${progress.id}`, {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath(`user/progress?id=${progress.id}`), {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -175,13 +203,13 @@ export function QuizView({ quiz, userId, contentId, onComplete }: QuizViewProps)
     setQuizResult(result);
     setQuizCompleted(true);
     
+    // 進捗を記録
+    saveProgressToAPI(result);
+    
     // コールバックを呼び出す
     if (onComplete) {
       onComplete(result);
     }
-    
-    // 自動保存を行わない（ボタン押下時に保存する）
-    // 既存のコードを削除
     
   }, [quiz, answers, timeSpent, onComplete, questionTimeSpent, isReviewMode, reviewQuestions]);
   
@@ -252,7 +280,8 @@ export function QuizView({ quiz, userId, contentId, onComplete }: QuizViewProps)
       console.log(`進捗データを読み込みます: userId=${userId}, contentId=${contentId}`);
       
       try {
-        const res = await fetch(`/scrum_sensei/api/user/progress?userId=${userId}&contentId=${contentId}`);
+        const { getApiPath } = await import('@/lib/apiUtils');
+        const res = await fetch(getApiPath(`user/progress?userId=${userId}&contentId=${contentId}`));
         
         if (!res.ok) {
           throw new Error(`API error: ${res.status}`);

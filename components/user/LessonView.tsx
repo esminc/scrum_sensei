@@ -152,7 +152,8 @@ export function LessonView({ content, userId, onComplete }: LessonViewProps) {
   useEffect(() => {
     const loadProgress = async () => {
       try {
-        const res = await fetch(`/scrum_sensei/api/user/progress?userId=${userId}&contentId=${content.id}`);
+        const { getApiPath } = await import('@/lib/apiUtils');
+        const res = await fetch(getApiPath(`user/progress?userId=${userId}&contentId=${content.id}`));
         const data = await res.json();
 
         if (data && data.id) {

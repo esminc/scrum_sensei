@@ -27,6 +27,16 @@ interface QuizItem {
   questionCount: number;
 }
 
+// 進捗情報の型定義
+interface ProgressInfo {
+  [key: string]: {
+    id: string;
+    status: string;
+    completion_percentage: number;
+    last_accessed: string;
+  } | undefined;
+}
+
 export default function QuizListPage() {
   const router = useRouter();
   const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
@@ -35,47 +45,84 @@ export default function QuizListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
+  const [progressInfo, setProgressInfo] = useState<ProgressInfo>({});
 
-  // クイズデータの取得
+  // クイズデータと進捗情報の取得
   useEffect(() => {
-    const fetchQuizzes = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
         const { getApiPath } = await import('@/lib/apiUtils');
-        const response = await fetch(getApiPath('quizzes'));
-        const data = await response.json();
         
-        if (data.success && Array.isArray(data.quizzes)) {
-          setQuizzes(data.quizzes);
-          setFilteredQuizzes(data.quizzes);
+        // クイズデータと進捗情報を並列取得
+        const [quizResponse, progressResponse] = await Promise.all([
+          fetch(getApiPath('user/quiz')),
+          fetch(getApiPath('user/progress?userId=user-1'))
+        ]);
+        
+        const quizData = await quizResponse.json();
+        const progressData = await progressResponse.json();
+        
+        if (quizData.success && Array.isArray(quizData.quizzes)) {
+          setQuizzes(quizData.quizzes);
+          setFilteredQuizzes(quizData.quizzes);
         } else {
           setQuizzes([]);
           setFilteredQuizzes([]);
         }
+        
+        // 進捗情報をオブジェクト形式に変換
+        if (progressData.progress && Array.isArray(progressData.progress)) {
+          const progressMap: ProgressInfo = {};
+          progressData.progress.forEach((progress: any) => {
+            progressMap[progress.content_id] = progress;
+          });
+          setProgressInfo(progressMap);
+        }
+        
         setError(null);
       } catch (error) {
-        console.error('クイズ取得エラー:', error);
-        setError('クイズデータの読み込みに失敗しました');
+        console.error('データ取得エラー:', error);
+        setError('データの読み込みに失敗しました');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchQuizzes();
+    fetchData();
   }, []);
 
   // 検索フィルタリング
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredQuizzes(quizzes);
-    } else {
-      const filtered = quizzes.filter(quiz =>
+    let filtered = quizzes;
+    
+    // 検索クエリでフィルタリング
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(quiz =>
         quiz.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         quiz.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      setFilteredQuizzes(filtered);
     }
-  }, [searchQuery, quizzes]);
+    
+    // ステータスでフィルタリング
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(quiz => {
+        const progress = progressInfo[quiz.id];
+        const isCompleted = progress?.status === 'completed';
+        
+        if (activeTab === 'completed') {
+          return isCompleted;
+        } else if (activeTab === 'not_started') {
+          return !progress;
+        } else if (activeTab === 'in_progress') {
+          return progress && progress.status !== 'completed';
+        }
+        return true;
+      });
+    }
+    
+    setFilteredQuizzes(filtered);
+  }, [searchQuery, quizzes, activeTab, progressInfo]);
 
   // 日付フォーマット関数
   const formatDate = (dateString: string) => {
@@ -89,14 +136,37 @@ export default function QuizListPage() {
 
   // クイズカード
   const QuizCard = ({ quiz }: { quiz: QuizItem }) => {
+    const progress = progressInfo[quiz.id];
+    const isCompleted = progress?.status === 'completed';
+    const completionPercentage = progress?.completion_percentage || 0;
+    
     return (
-      <Card className="glass-card overflow-hidden animate-in delay-300">
+      <Card className="glass-card overflow-hidden animate-in delay-300 relative">
+        {isCompleted && (
+          <div className="absolute top-0 right-0 w-0 h-0 border-l-[50px] border-l-transparent border-t-[50px] border-t-green-500">
+            <div className="absolute -top-[35px] -left-[35px] text-white text-xs font-bold">
+              ✓
+            </div>
+          </div>
+        )}
         <CardHeader className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <Badge className="glass-morphism-subtle text-blue-700 px-3 py-1">
-              <FileQuestion className="h-4 w-4 mr-1" />
-              <span>問題</span>
-            </Badge>
+            <div className="flex items-center space-x-2">
+              <Badge className="glass-morphism-subtle text-blue-700 px-3 py-1">
+                <FileQuestion className="h-4 w-4 mr-1" />
+                <span>問題</span>
+              </Badge>
+              {isCompleted && (
+                <Badge className="bg-green-100 text-green-800 px-3 py-1">
+                  <span>完了済み</span>
+                </Badge>
+              )}
+              {progress && !isCompleted && completionPercentage > 0 && (
+                <Badge className="bg-yellow-100 text-yellow-800 px-3 py-1">
+                  <span>途中({completionPercentage}%)</span>
+                </Badge>
+              )}
+            </div>
           </div>
           <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             {quiz.title}
@@ -119,12 +189,21 @@ export default function QuizListPage() {
                 </span>
               </div>
             </div>
+            {progress && progress.last_accessed && (
+              <div className="mt-2 text-xs text-gray-500">
+                最終アクセス: {new Date(progress.last_accessed).toLocaleDateString('ja-JP')}
+              </div>
+            )}
           </div>
         </CardContent>
         <CardFooter className="p-6 pt-0">
           <Link href={`/user/quiz/${quiz.id}`} className="w-full">
-            <Button className="w-full glass-button bg-gradient-to-r from-blue-500 to-purple-600 text-white font-medium py-3 rounded-xl">
-              問題に挑戦
+            <Button className={`w-full font-medium py-3 rounded-xl ${
+              isCompleted 
+                ? 'glass-button bg-gradient-to-r from-green-500 to-teal-600 text-white'
+                : 'glass-button bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+            }`}>
+              {isCompleted ? '再挑戦' : (progress && completionPercentage > 0 ? '続きから' : '問題に挑戦')}
             </Button>
           </Link>
         </CardFooter>
@@ -180,13 +259,52 @@ export default function QuizListPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Button
-                variant="outline"
-                className="glass-button text-gray-700 px-4 py-2 rounded-xl"
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                フィルター
-              </Button>
+            </div>
+
+            {/* ステータスフィルタータブ */}
+            <div className="flex items-center space-x-2 mb-6">
+              <div className="glass-morphism-subtle rounded-xl p-1 flex">
+                <button
+                  onClick={() => setActiveTab('all')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'all'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  すべて
+                </button>
+                <button
+                  onClick={() => setActiveTab('not_started')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'not_started'
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  未開始
+                </button>
+                <button
+                  onClick={() => setActiveTab('in_progress')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'in_progress'
+                      ? 'bg-gradient-to-r from-yellow-500 to-orange-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  進行中
+                </button>
+                <button
+                  onClick={() => setActiveTab('completed')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === 'completed'
+                      ? 'bg-gradient-to-r from-green-500 to-teal-600 text-white shadow-lg'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  完了済み
+                </button>
+              </div>
             </div>
 
             {isLoading ? (

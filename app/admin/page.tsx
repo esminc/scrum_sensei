@@ -2,61 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import AdminNav from '../../components/admin/AdminNav';
-import AudioMaterialPreview from '@/components/admin/AudioMaterialPreview';
-import QuizPreview from '@/components/admin/QuizPreview';
 import DevelopmentBanner from '@/components/ui/DevelopmentBanner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // ダッシュボード用の概要データ型
 type DashboardStats = {
   totalContents: number;
   totalPdfs: number;
   totalQuizzes: number;
-  recentActivities: Array<{
-    id: string;
-    action: string;
-    date: string;
-    type: string;
-  }>;
 };
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalContents: 0,
     totalPdfs: 0,
-    totalQuizzes: 0,
-    recentActivities: []
+    totalQuizzes: 0
   });
   const [loading, setLoading] = useState(true);
-  const [audioMaterials, setAudioMaterials] = useState([]);
-  const [quizMaterials, setQuizMaterials] = useState([]);
-  const [materialsLoading, setMaterialsLoading] = useState(false);
-
-  // 教材データを取得
-  const fetchMaterials = async () => {
-    setMaterialsLoading(true);
-    try {
-      const { getApiPath } = await import('@/lib/apiUtils');
-      const [audioResponse, quizResponse] = await Promise.all([
-        fetch(getApiPath('admin/audio-materials')),
-        fetch(getApiPath('admin/quiz-materials'))
-      ]);
-      
-      if (audioResponse.ok) {
-        const audioData = await audioResponse.json();
-        setAudioMaterials(audioData.materials || []);
-      }
-      
-      if (quizResponse.ok) {
-        const quizData = await quizResponse.json();
-        setQuizMaterials(quizData.materials || []);
-      }
-    } catch (error) {
-      console.error('教材データの取得に失敗しました:', error);
-    } finally {
-      setMaterialsLoading(false);
-    }
-  };
 
   // ダッシュボードのデータを取得
   useEffect(() => {
@@ -72,8 +33,7 @@ export default function AdminDashboard() {
           setStats({
             totalContents: data.stats.totalContents || 0,
             totalPdfs: data.stats.totalPdfs || 0,
-            totalQuizzes: data.stats.totalQuizzes || 0,
-            recentActivities: data.stats.recentActivities || []
+            totalQuizzes: data.stats.totalQuizzes || 0
           });
         } else {
           console.error('ダッシュボードデータのフォーマットが不正です:', data);
@@ -81,8 +41,7 @@ export default function AdminDashboard() {
           setStats({
             totalContents: 0,
             totalPdfs: 0,
-            totalQuizzes: 0,
-            recentActivities: []
+            totalQuizzes: 0
           });
         }
       } catch (error) {
@@ -91,8 +50,7 @@ export default function AdminDashboard() {
         setStats({
           totalContents: 0,
           totalPdfs: 0,
-          totalQuizzes: 0,
-          recentActivities: []
+          totalQuizzes: 0
         });
       } finally {
         setLoading(false);
@@ -100,7 +58,6 @@ export default function AdminDashboard() {
     };
 
     fetchDashboardData();
-    fetchMaterials();
   }, []);
 
   return (
@@ -212,105 +169,144 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* タブレイアウト */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="glass-morphism bg-white/30 border-white/20 backdrop-blur-sm p-1 h-auto rounded-2xl">
-            <TabsTrigger 
-              value="dashboard" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl px-6 py-3 font-medium transition-all duration-200"
-            >
-              📊 ダッシュボード
-            </TabsTrigger>
-            <TabsTrigger 
-              value="audio" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl px-6 py-3 font-medium transition-all duration-200"
-            >
-              🎵 音声教材
-            </TabsTrigger>
-            <TabsTrigger 
-              value="quiz" 
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl px-6 py-3 font-medium transition-all duration-200"
-            >
-              🧩 クイズ教材
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="dashboard" className="animate-in slide-in-from-top-5 duration-300">
-            <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl">
-              <div className="p-8">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">最近のアクティビティ</h2>
-                </div>
-                <div className="space-y-3">
-                  {stats.recentActivities.map(activity => (
-                    <div 
-                      key={activity.id} 
-                      className="glass-morphism bg-white/30 border-white/20 backdrop-blur-sm rounded-xl p-4 hover:bg-white/40 transition-all duration-200 hover:scale-105"
-                    >
-                      <div className="mr-4 flex-shrink-0">
-                        {activity.type === 'add' && (
-                          <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                        )}
-                        {activity.type === 'upload' && (
-                          <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                        )}
-                        {activity.type === 'generate' && (
-                          <div className="p-3 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl shadow-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M11 17a1 1 0 001.447.894l4-2A1 1 0 0017 15V9.236a1 1 0 00-1.447-.894l-4 2a1 1 0 00-.553.894V17zM15.211 6.276a1 1 0 000-1.788l-4.764-2.382a1 1 0 00-.894 0L4.789 4.488a1 1 0 000 1.788l4.764 2.382a1 1 0 00.894 0l4.764-2.382zM4.447 8.342A1 1 0 003 9.236V15a1 1 0 00.553.894l4 2A1 1 0 009 17v-5.764a1 1 0 00-.553-.894l-4-2z" />
-                            </svg>
-                          </div>
-                        )}
-                        {activity.type === 'edit' && (
-                          <div className="p-3 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl shadow-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-800">{activity.action}</p>
-                        <p className="text-xs text-gray-600 mt-1">{activity.date}</p>
-                      </div>
+        {/* 教材作成手順ガイド */}
+        <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl animate-in delay-700">
+          <div className="p-8">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2 bg-gradient-to-br from-green-500 to-teal-600 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-green-600 to-teal-600 bg-clip-text text-transparent">教材作成手順ガイド</h2>
+            </div>
+            
+            <div className="space-y-6">
+              {/* ステップ1 */}
+              <div className="glass-morphism-subtle rounded-xl p-6 relative">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      1
                     </div>
-                  ))}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      PDFファイルをアップロード
+                    </h3>
+                    <p className="text-gray-600 mb-3">
+                      教材の元となるPDFファイルをアップロードします。スクラムガイドや学習資料などを準備してください。
+                    </p>
+                    <a
+                      href="/admin/upload"
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors duration-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      PDFアップロードページへ
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* 矢印 */}
+              <div className="flex justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+
+              {/* ステップ2 */}
+              <div className="glass-morphism-subtle rounded-xl p-6">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      2
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      問題生成ツールでクイズを作成
+                    </h3>
+                    <p className="text-gray-600 mb-3">
+                      AIを活用してアップロードしたPDFから学習問題を自動生成します。トピックや難易度を指定できます。
+                    </p>
+                    <a
+                      href="/admin/quiz-generator"
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors duration-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      問題生成ツールへ
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* 矢印 */}
+              <div className="flex justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+
+              {/* ステップ3 */}
+              <div className="glass-morphism-subtle rounded-xl p-6">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      3
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2 flex items-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                      音声教材を作成
+                    </h3>
+                    <p className="text-gray-600 mb-3">
+                      生成されたクイズや学習コンテンツをもとに、Gemini 2.5 TTSを使用して高品質な音声教材を作成します。
+                    </p>
+                    <a
+                      href="/admin/audio-materials/create"
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors duration-200"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                      音声教材作成へ
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
-          </TabsContent>
-          
-          <TabsContent value="audio" className="animate-in slide-in-from-top-5 duration-300">
-            <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl p-8">
-              <AudioMaterialPreview 
-                materials={audioMaterials} 
-                onRefresh={fetchMaterials}
-              />
+
+            {/* 補足情報 */}
+            <div className="mt-8 glass-morphism bg-blue-50/80 border-blue-200/50 backdrop-blur-sm rounded-xl p-4">
+              <div className="flex items-start space-x-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <h4 className="font-semibold text-blue-800 mb-1">ヒント</h4>
+                  <p className="text-blue-700 text-sm leading-relaxed">
+                    作成した教材は「教材管理」ページから確認・管理できます。公開状態を設定することで、学習者に教材を提供できます。
+                  </p>
+                </div>
+              </div>
             </div>
-          </TabsContent>
-          
-          <TabsContent value="quiz" className="animate-in slide-in-from-top-5 duration-300">
-            <div className="glass-morphism bg-white/40 border-white/20 backdrop-blur-sm rounded-2xl shadow-xl p-8">
-              <QuizPreview 
-                materials={quizMaterials} 
-                onRefresh={fetchMaterials}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </div>
+
       </div>
     </div>
   );

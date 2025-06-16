@@ -6,13 +6,8 @@ import { NextResponse } from 'next/server';
  * @returns 完全なAPIパス
  */
 export function getApiPath(endpoint: string): string {
-  // 開発環境では basePath を使わない
-  if (process.env.NODE_ENV === 'development') {
-    return `/api/${endpoint}`;
-  }
-  
-  // 本番環境では basePath を含める
-  return `/scrum_sensei/api/${endpoint}`;
+  // 全ての環境でルートパス（basePath無し）を使用
+  return `/api/${endpoint}`;
 }
 
 /**

@@ -33,7 +33,8 @@ export default function AudioMaterialPreview({ materials, onRefresh }: AudioMate
     if (!confirm('この音声教材を削除してもよろしいですか？')) return;
     
     try {
-      const response = await fetch(`/scrum_sensei/api/admin/audio-materials/${id}`, {
+      const { getApiPath } = await import('@/lib/apiUtils');
+      const response = await fetch(getApiPath(`admin/audio-materials/${id}`), {
         method: 'DELETE',
       });
       

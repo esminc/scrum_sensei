@@ -27,7 +27,7 @@ export async function checkMastraConnection(): Promise<MastraConnectionStatus> {
     
     // クライアントサイドでは絶対URLを使用
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
-    const response = await fetch(`${baseUrl}/scrum_sensei/api/mastra/health`, {
+    const response = await fetch(`${baseUrl}/api/mastra/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -78,7 +78,7 @@ export async function chatWithCoach(messages: ChatMessage[]): Promise<ChatRespon
     console.log('Sending request to AI agent: simple-coach');
     
     // 内部APIルートを使用
-    const response = await fetch('/scrum_sensei/api/mastra/agents', {
+    const response = await fetch('/api/mastra/agents', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

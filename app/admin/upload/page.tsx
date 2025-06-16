@@ -283,7 +283,7 @@ export default function AdminPdfUploadPage() {
               教材PDFアップロード
             </h1>
             <p className="mt-2 text-gray-600 text-lg">
-              教材として使用するPDFファイルをアップロードし、エンベディング処理を行います
+              教材として使用するPDFファイルをアップロードし、管理します
             </p>
           </div>
         </div>

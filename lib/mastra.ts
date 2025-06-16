@@ -5,7 +5,7 @@ export class AIClient {
   private baseUrl: string;
 
   constructor() {
-    this.baseUrl = typeof window !== 'undefined' ? window.location.origin + '/scrum_sensei' : 'http://localhost:3000/scrum_sensei';
+    this.baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   }
 
   async callAgent(agentName: string, messages: any[], context?: any) {
